@@ -31,6 +31,7 @@ import {
   reloadingSeriesListState,
   seriesListState,
   serieUpdatesState,
+  serieUpdatesLaunchState,
 } from '../../state/libraryStates';
 import library from '../../services/library';
 import {
@@ -61,6 +62,7 @@ const DashboardPage: React.FC<Props> = () => {
   const [importing, setImporting] = useRecoilState(importingState);
   const categoryList = useRecoilValue(categoryListState);
 
+  const [serieUpdateLaunch,setSerieUpdateLaunch] = useRecoilState(serieUpdatesLaunchState);
   const [serieUpdate,setSerieUpdate] = useRecoilState(serieUpdatesState);
 
   // const [seriesDataBeforeReload, setSeriesDataBeforeReload] = useState({});
@@ -68,8 +70,8 @@ const DashboardPage: React.FC<Props> = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const initSeriesData = await fetchSeriesData();
-      // setSeriesDataBeforeReload(initSeriesData);
+      const initSeriesData = await fetchSeriesData(library.fetchSeriesList());
+      setSerieUpdateLaunch(initSeriesData);
 
       if (autoBackup) {
         createAutoBackup(autoBackupCount);
@@ -84,9 +86,9 @@ const DashboardPage: React.FC<Props> = () => {
           chapterLanguages,
           categoryList
         ).then(async () => {
-          const updatedSeriesData = await fetchSeriesData();
+          const updatedSeriesData = await fetchSeriesData(library.fetchSeriesList());
           // setSeriesDataAfterReload(updatedSeriesData);
-          compareSeriesData(initSeriesData,updatedSeriesData);
+          compareSeriesData(initSeriesData,updatedSeriesData,setSerieUpdate);
         }).catch((e) => log.error(e));
       }
     }
@@ -111,53 +113,6 @@ const DashboardPage: React.FC<Props> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importQueue, importing]);
 
-  const fetchSeriesData = async () => {
-    // Implement logic to fetch and organize series and chapter data
-    // Example: Fetch series and chapters for each series
-    const seriesData: {serie: Series, chapters: Chapter[] }[] = []
-    activeSeriesList.forEach((element,index) => {
-      let serie = library.fetchSeries(element.id!);
-      let chapters = library.fetchChapters(element.id!);
-      if(serie == null) return;
-      seriesData[index] = { serie, chapters };
-    });
-
-    return seriesData;
-  };
-
-  const compareSeriesData = (beforeReload: {serie: Series, chapters: Chapter[] }[], afterReload: {serie: Series, chapters: Chapter[] }[]) => {
-    // Implement logic to compare beforeReload and afterReload
-    // Example: Find unique chapters and save them
-    const uniqueChapters: { serie: Series; chapters: Chapter[] }[] = [];
-
-    // console.log("test1");
-    // console.log(beforeReload[0].chapters);
-    // console.log(afterReload[0].chapters);
-    // console.log("test2");
-    
-
-    afterReload.forEach((afterSerie, index) => {
-      const beforeChapters = beforeReload[index].chapters;
-      const afterChapters = afterSerie.chapters;
-
-      const newChapters = afterChapters.filter(afterChapter => {
-        // Assuming there is an id property in Chapter
-        const isChapterPresent = beforeChapters.some(
-          beforeChapter => beforeChapter.id === afterChapter.id
-        );
-      
-        return !isChapterPresent;
-      });
-      
-      if(newChapters.length > 0){
-        uniqueChapters[index] = {serie: afterSerie.serie, chapters: newChapters}
-        setSerieUpdate(uniqueChapters)
-      }
-    })
-
-    // Save unique chapters to state or perform any desired action
-    // console.log('Unique Chapters:', uniqueChapters);
-  };
 
   return (
     <AppShell
@@ -230,5 +185,49 @@ const DashboardPage: React.FC<Props> = () => {
     </AppShell>
   );
 };
+
+export const fetchSeriesData = async (array: Series[]) => {
+  const seriesData: {serie: Series, chapters: Chapter[] }[] = []
+  array.forEach((element,index) => {
+    let serie = library.fetchSeries(element.id!);
+    let chapters = library.fetchChapters(element.id!).sort((a,b) => parseFloat(b.chapterNumber) - parseFloat(a.chapterNumber));
+    if(serie == null) return;
+    seriesData[index] = { serie, chapters };
+  });
+
+  return seriesData;
+};
+
+export const compareSeriesData = (
+  beforeReload: { serie: Series; chapters: Chapter[] }[],
+  afterReload: { serie: Series; chapters: Chapter[] }[],
+  setSerieUpdate: React.Dispatch<React.SetStateAction<{ serie: Series; chapters: Chapter[] }[]>>
+) => {
+  const uniqueChapters: { serie: Series; chapters: Chapter[] }[] = [];
+
+  afterReload.forEach((afterSerie) => {
+    const beforeIndex = beforeReload.findIndex(
+      beforeSerie => beforeSerie.serie.id === afterSerie.serie.id
+    );
+    const beforeChapters = beforeReload[beforeIndex]?.chapters || [];
+    const afterChapters = afterSerie.chapters;
+
+    const newChapters = afterChapters.filter(afterChapter => {
+      const isChapterPresent = beforeChapters.some(
+        beforeChapter => beforeChapter.id === afterChapter.id
+      );
+      return !isChapterPresent;
+    });
+
+    if (newChapters.length > 0) {
+      uniqueChapters[beforeIndex] = { serie: afterSerie.serie, chapters: newChapters };
+    }
+  });
+
+  const updatedUniqueChapters = [...uniqueChapters]; // Clone the array
+
+  setSerieUpdate(updatedUniqueChapters);
+};
+
 
 export default DashboardPage;

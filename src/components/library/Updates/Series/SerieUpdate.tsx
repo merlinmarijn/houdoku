@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ScrollArea, Text } from '@mantine/core';
+import { Flex, ScrollArea, Text } from '@mantine/core';
 import library from '../../../../services/library';
 import SerieUpdateRow from './SerieUpdateRow';
 import { useRecoilState } from 'recoil';
@@ -20,11 +20,10 @@ const SeriesUpdate: React.FC = () => {
     const [serieUpdate,setSerieUpdate] = useRecoilState(serieUpdatesState);
   
     return (
-      <>
+      <div style={{display: 'flex', flexWrap: 'wrap'}}>
         {serieUpdate.map((update) => {
           if (update.chapters.length > 0) {
             console.log(update.chapters);
-  
             // Use a unique key for each SerieUpdateRow
             return update.chapters.map((chapter, index) => (
               <SerieUpdateRow
@@ -36,7 +35,7 @@ const SeriesUpdate: React.FC = () => {
             ));
           }
         })}
-      </>
+      </div>
     );
   };
   
@@ -70,7 +69,7 @@ const SeriesUpdate: React.FC = () => {
 
   return (
     <>
-      <ScrollArea style={{ height: 'calc(100vh - 24px - 72px)' }} pr="xl" mr={-16}>
+      <ScrollArea style={{ height: 'calc(100vh - 24px - 72px)'}} pr="xl" mr={-16}>
         {100 > 0 ? renderLibrary() : renderEmptyMessage()}
       </ScrollArea>
     </>

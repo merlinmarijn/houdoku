@@ -24,6 +24,8 @@ import {
   categoryListState,
   filterState,
   reloadingSeriesListState,
+  serieUpdatesLaunchState,
+  serieUpdatesState,
   seriesListState,
   showingLibraryCtxMenuState,
 } from '../../state/libraryStates';
@@ -67,6 +69,8 @@ const LibraryControlBar: React.FC<Props> = (props: Props) => {
   const chapterLanguages = useRecoilValue(chapterLanguagesState);
   const categoryList = useRecoilValue(categoryListState);
   const setShowingContextMenu = useSetRecoilState(showingLibraryCtxMenuState);
+  const [serieUpdateLaunch] = useRecoilState(serieUpdatesLaunchState);
+  const [,setSerieUpdate] = useRecoilState(serieUpdatesState);
 
   const refreshHandler = () => {
     if (!reloadingSeriesList) {
@@ -75,7 +79,9 @@ const LibraryControlBar: React.FC<Props> = (props: Props) => {
         setSeriesList,
         setReloadingSeriesList,
         chapterLanguages,
-        categoryList
+        categoryList,
+        setSerieUpdate,
+        serieUpdateLaunch
       );
     }
   };
