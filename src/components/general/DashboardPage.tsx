@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
 import log from 'electron-log';
@@ -9,8 +9,10 @@ import {
   IconPuzzle,
   IconSettings,
   IconSquarePlus,
+  IconCalendar,
 } from '@tabler/icons';
 import { AppShell, Navbar } from '@mantine/core';
+import SeriesUpdate from '../library/Updates/Series/SerieUpdate';
 import SeriesDetails from '../library/SeriesDetails';
 import Search from '../search/Search';
 import routes from '../../constants/routes.json';
@@ -28,6 +30,8 @@ import {
   importQueueState,
   reloadingSeriesListState,
   seriesListState,
+  serieUpdatesState,
+  serieUpdatesLaunchState,
 } from '../../state/libraryStates';
 import library from '../../services/library';
 import {
@@ -48,6 +52,7 @@ import {
   DownloadUnreadChapters,
 } from '../../features/library/chapterDownloadUtils';
 import { getDefaultDownloadDir } from '../settings/GeneralSettings';
+import { Chapter, Series } from '@tiyo/common';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface Props {}
@@ -65,12 +70,18 @@ const DashboardPage: React.FC<Props> = () => {
   const [importing, setImporting] = useRecoilState(importingState);
   const categoryList = useRecoilValue(categoryListState);
 
+  const [serieUpdateLaunch,setSerieUpdateLaunch] = useRecoilState(serieUpdatesLaunchState);
+  const [serieUpdate,setSerieUpdate] = useRecoilState(serieUpdatesState);
+
   const OnStartUpDownloadUnread = useRecoilValue(OnStartUpDownloadUnreadState);
   const OnStartUpDownloadUnreadCount = useRecoilValue(OnStartDownloadUnreadCountState);
   const OnStartUpDeleteRead = useRecoilValue(OnStartUpDeleteReadState);
   const customDownloadsDir = useRecoilValue(customDownloadsDirState);
 
   useEffect(() => {
+    const fetchData = async () => {
+      const initSeriesData = await fetchSeriesData(library.fetchSeriesList());
+      setSerieUpdateLaunch(initSeriesData);
     if (autoBackup) {
       createAutoBackup(autoBackupCount);
     }
@@ -83,7 +94,7 @@ const DashboardPage: React.FC<Props> = () => {
         chapterLanguages,
         categoryList
       )
-        .then(() => {
+        .then(async () => {
           if (OnStartUpDeleteRead) {
             DeleteReadChapters(
               library.fetchSeriesList(),
@@ -97,9 +108,15 @@ const DashboardPage: React.FC<Props> = () => {
               OnStartUpDownloadUnreadCount
             );
           }
+          const updatedSeriesData = await fetchSeriesData(library.fetchSeriesList());
+          // setSeriesDataAfterReload(updatedSeriesData);
+          compareSeriesData(initSeriesData,updatedSeriesData,setSerieUpdate);
         })
         .catch((e) => log.error(e));
+
     }
+  }
+    fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSeriesList]);
 
@@ -120,6 +137,7 @@ const DashboardPage: React.FC<Props> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importQueue, importing]);
 
+
   return (
     <AppShell
       padding="md"
@@ -131,6 +149,12 @@ const DashboardPage: React.FC<Props> = () => {
               color="orange"
               label="Library"
               route={routes.LIBRARY}
+            />
+            <DashboardSidebarLink
+              icon={<IconCalendar size={16} />}
+              color="yellow"
+              label="Updates"
+              route={routes.SERIESUPDATE}
             />
             <DashboardSidebarLink
               icon={<IconSquarePlus size={16} />}
@@ -173,6 +197,7 @@ const DashboardPage: React.FC<Props> = () => {
       })}
     >
       <Routes>
+        <Route path={`${routes.SERIESUPDATE}/*`} element={<SeriesUpdate />} />
         <Route path={`${routes.SERIES}/:id`} element={<SeriesDetails />} />
         <Route path={`${routes.SETTINGS}/*`} element={<Settings />} />
         <Route path={`${routes.ABOUT}/*`} element={<About />} />
@@ -184,5 +209,49 @@ const DashboardPage: React.FC<Props> = () => {
     </AppShell>
   );
 };
+
+export const fetchSeriesData = async (array: Series[]) => {
+  const seriesData: {serie: Series, chapters: Chapter[] }[] = []
+  array.forEach((element,index) => {
+    let serie = library.fetchSeries(element.id!);
+    let chapters = library.fetchChapters(element.id!).sort((a,b) => parseFloat(b.chapterNumber) - parseFloat(a.chapterNumber));
+    if(serie == null) return;
+    seriesData[index] = { serie, chapters };
+  });
+
+  return seriesData;
+};
+
+export const compareSeriesData = (
+  beforeReload: { serie: Series; chapters: Chapter[] }[],
+  afterReload: { serie: Series; chapters: Chapter[] }[],
+  setSerieUpdate: React.Dispatch<React.SetStateAction<{ serie: Series; chapters: Chapter[] }[]>>
+) => {
+  const uniqueChapters: { serie: Series; chapters: Chapter[] }[] = [];
+
+  afterReload.forEach((afterSerie) => {
+    const beforeIndex = beforeReload.findIndex(
+      beforeSerie => beforeSerie.serie.id === afterSerie.serie.id
+    );
+    const beforeChapters = beforeReload[beforeIndex]?.chapters || [];
+    const afterChapters = afterSerie.chapters;
+
+    const newChapters = afterChapters.filter(afterChapter => {
+      const isChapterPresent = beforeChapters.some(
+        beforeChapter => beforeChapter.id === afterChapter.id
+      );
+      return !isChapterPresent;
+    });
+
+    if (newChapters.length > 0) {
+      uniqueChapters[beforeIndex] = { serie: afterSerie.serie, chapters: newChapters };
+    }
+  });
+
+  const updatedUniqueChapters = [...uniqueChapters]; // Clone the array
+
+  setSerieUpdate(updatedUniqueChapters);
+};
+
 
 export default DashboardPage;

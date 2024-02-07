@@ -3,7 +3,7 @@ import { ipcRenderer } from 'electron';
 import log from 'electron-log';
 import { Chapter, LanguageKey, Series } from '@tiyo/common';
 import React from 'react';
-import { SetterOrUpdater } from 'recoil';
+import { SetterOrUpdater, useRecoilState } from 'recoil';
 import { closeAllModals, openConfirmModal, openModal } from '@mantine/modals';
 import { Button, Group, List, Text } from '@mantine/core';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,6 +17,8 @@ import library from '../../services/library';
 import { getNumberUnreadChapters } from '../../util/comparison';
 import routes from '../../constants/routes.json';
 import { Category } from '../../models/types';
+import { serieUpdatesLaunchState, serieUpdatesState } from '../../state/libraryStates';
+import { compareSeriesData, fetchSeriesData } from '../../components/general/DashboardPage';
 
 const updateSeriesNumberUnread = (series: Series, chapterLanguages: LanguageKey[]) => {
   if (series.id !== undefined) {
@@ -219,7 +221,9 @@ export async function reloadSeriesList(
   setSeriesList: (seriesList: Series[]) => void,
   setReloadingSeriesList: (reloadingSeriesList: boolean) => void,
   chapterLanguages: LanguageKey[],
-  categoryList: Category[]
+  categoryList: Category[],
+  setSerieUpdate?: React.Dispatch<React.SetStateAction<{ serie: Series; chapters: Chapter[] }[]>>,
+  launchLibrary?: {serie: Series, chapters: Chapter[] }[],
 ) {
   log.debug(`Reloading series list...`);
   setReloadingSeriesList(true);
@@ -325,6 +329,11 @@ export async function reloadSeriesList(
   }
 
   setReloadingSeriesList(false);
+  if(launchLibrary&&setSerieUpdate){
+    console.log("test");
+    
+    compareSeriesData(launchLibrary,await fetchSeriesData(library.fetchSeriesList()),setSerieUpdate);
+  }
 }
 
 export function updateSeries(series: Series) {
