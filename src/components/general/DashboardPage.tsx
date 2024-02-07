@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
 import log from 'electron-log';
@@ -9,8 +9,10 @@ import {
   IconPuzzle,
   IconSettings,
   IconSquarePlus,
+  IconCalendar,
 } from '@tabler/icons';
 import { AppShell, Navbar } from '@mantine/core';
+import SeriesUpdate from '../library/Updates/Series/SerieUpdate';
 import SeriesDetails from '../library/SeriesDetails';
 import Search from '../search/Search';
 import routes from '../../constants/routes.json';
@@ -28,6 +30,7 @@ import {
   importQueueState,
   reloadingSeriesListState,
   seriesListState,
+  serieUpdatesState,
 } from '../../state/libraryStates';
 import library from '../../services/library';
 import {
@@ -39,6 +42,8 @@ import {
 import DashboardSidebarLink from './DashboardSidebarLink';
 import { downloadCover } from '../../util/download';
 import { createAutoBackup } from '../../util/backup';
+import { forEach } from 'jszip';
+import { Chapter, Series } from '@tiyo/common';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface Props {}
@@ -56,20 +61,36 @@ const DashboardPage: React.FC<Props> = () => {
   const [importing, setImporting] = useRecoilState(importingState);
   const categoryList = useRecoilValue(categoryListState);
 
+  const [serieUpdate,setSerieUpdate] = useRecoilState(serieUpdatesState);
+
+  // const [seriesDataBeforeReload, setSeriesDataBeforeReload] = useState({});
+  // const [seriesDataAfterReload, setSeriesDataAfterReload] = useState({});
+
   useEffect(() => {
-    if (autoBackup) {
-      createAutoBackup(autoBackupCount);
+    const fetchData = async () => {
+      const initSeriesData = await fetchSeriesData();
+      // setSeriesDataBeforeReload(initSeriesData);
+
+      if (autoBackup) {
+        createAutoBackup(autoBackupCount);
+      }
+
+      if (refreshOnStart && !completedStartReload && activeSeriesList.length > 0) {
+        setCompletedStartReload(true);
+        reloadSeriesList(
+          library.fetchSeriesList(),
+          setSeriesList,
+          setReloadingSeriesList,
+          chapterLanguages,
+          categoryList
+        ).then(async () => {
+          const updatedSeriesData = await fetchSeriesData();
+          // setSeriesDataAfterReload(updatedSeriesData);
+          compareSeriesData(initSeriesData,updatedSeriesData);
+        }).catch((e) => log.error(e));
+      }
     }
-    if (refreshOnStart && !completedStartReload && activeSeriesList.length > 0) {
-      setCompletedStartReload(true);
-      reloadSeriesList(
-        library.fetchSeriesList(),
-        setSeriesList,
-        setReloadingSeriesList,
-        chapterLanguages,
-        categoryList
-      ).catch((e) => log.error(e));
-    }
+    fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSeriesList]);
 
@@ -90,6 +111,54 @@ const DashboardPage: React.FC<Props> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importQueue, importing]);
 
+  const fetchSeriesData = async () => {
+    // Implement logic to fetch and organize series and chapter data
+    // Example: Fetch series and chapters for each series
+    const seriesData: {serie: Series, chapters: Chapter[] }[] = []
+    activeSeriesList.forEach((element,index) => {
+      let serie = library.fetchSeries(element.id!);
+      let chapters = library.fetchChapters(element.id!);
+      if(serie == null) return;
+      seriesData[index] = { serie, chapters };
+    });
+
+    return seriesData;
+  };
+
+  const compareSeriesData = (beforeReload: {serie: Series, chapters: Chapter[] }[], afterReload: {serie: Series, chapters: Chapter[] }[]) => {
+    // Implement logic to compare beforeReload and afterReload
+    // Example: Find unique chapters and save them
+    const uniqueChapters: { serie: Series; chapters: Chapter[] }[] = [];
+
+    // console.log("test1");
+    // console.log(beforeReload[0].chapters);
+    // console.log(afterReload[0].chapters);
+    // console.log("test2");
+    
+
+    afterReload.forEach((afterSerie, index) => {
+      const beforeChapters = beforeReload[index].chapters;
+      const afterChapters = afterSerie.chapters;
+
+      const newChapters = afterChapters.filter(afterChapter => {
+        // Assuming there is an id property in Chapter
+        const isChapterPresent = beforeChapters.some(
+          beforeChapter => beforeChapter.id === afterChapter.id
+        );
+      
+        return !isChapterPresent;
+      });
+      
+      if(newChapters.length > 0){
+        uniqueChapters[index] = {serie: afterSerie.serie, chapters: newChapters}
+        setSerieUpdate(uniqueChapters)
+      }
+    })
+
+    // Save unique chapters to state or perform any desired action
+    // console.log('Unique Chapters:', uniqueChapters);
+  };
+
   return (
     <AppShell
       padding="md"
@@ -101,6 +170,12 @@ const DashboardPage: React.FC<Props> = () => {
               color="orange"
               label="Library"
               route={routes.LIBRARY}
+            />
+            <DashboardSidebarLink
+              icon={<IconCalendar size={16} />}
+              color="yellow"
+              label="Updates"
+              route={routes.SERIESUPDATE}
             />
             <DashboardSidebarLink
               icon={<IconSquarePlus size={16} />}
@@ -143,6 +218,7 @@ const DashboardPage: React.FC<Props> = () => {
       })}
     >
       <Routes>
+        <Route path={`${routes.SERIESUPDATE}/*`} element={<SeriesUpdate />} />
         <Route path={`${routes.SERIES}/:id`} element={<SeriesDetails />} />
         <Route path={`${routes.SETTINGS}/*`} element={<Settings />} />
         <Route path={`${routes.ABOUT}/*`} element={<About />} />

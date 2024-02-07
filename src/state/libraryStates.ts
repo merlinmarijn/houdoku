@@ -90,6 +90,16 @@ export const activeSeriesListState = selector({
   },
 });
 
+type SerieUpdate = {
+  serie: Series;
+  chapters: Chapter[];
+}
+
+export const serieUpdatesState = atom<SerieUpdate[]>({
+  key: 'serieUpdates',
+  default: [],
+});
+
 export const sortedFilteredChapterListState = selector<Chapter[]>({
   key: 'sortedFilteredChapterListState',
   get: ({ get }) => {
