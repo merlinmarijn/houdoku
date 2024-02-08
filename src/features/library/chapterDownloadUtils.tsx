@@ -103,8 +103,8 @@ export async function DownloadUnreadChapters(
   seriesList: Series[],
   downloadsDir: string,
   chapterLanguages: LanguageKey[],
+  count = 1,
   notification = true,
-  count = 1
 ) {
   seriesList
     .filter((series) => series.numberUnread > 0 && series.id)

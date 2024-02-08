@@ -99,8 +99,8 @@ const SeriesDetails: React.FC<Props> = () => {
       DownloadUnreadChapters(
         seriesArr,
         customDownloadsDir || String(getDefaultDownloadDir()),
+        chapterLanguages,
         OnStartUpDownloadUnreadCount,
-        chapterLanguages
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
