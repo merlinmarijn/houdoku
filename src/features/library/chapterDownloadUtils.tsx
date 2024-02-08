@@ -1,4 +1,4 @@
-import { Chapter, Series } from '@tiyo/common';
+import { Chapter, LanguageKey, Series } from '@tiyo/common';
 import { downloaderClient, DownloadTask } from '../../services/downloader';
 import {
   deleteDownloadedChapter,
@@ -102,40 +102,48 @@ export async function downloadAll(
 export async function DownloadUnreadChapters(
   seriesList: Series[],
   downloadsDir: string,
-  count = 1,
-  notification = true
+  chapterLanguages: LanguageKey[],
+  notification = true,
+  count = 1
 ) {
   seriesList
-    .filter((series) => library.validURL(series.sourceId))
     .filter((series) => series.numberUnread > 0 && series.id)
     .forEach(async (series) => {
-      const serieChapters = library
-        .fetchChapters(series.id!)
-        .filter((x) => !x.read)
-        .sort((a, b) => parseFloat(a.chapterNumber) - parseFloat(b.chapterNumber))
-        .slice(0, count);
+      library
+        .validFilePath(series.sourceId)
+        .then(async (result) => {
+          if (result === false) {
+            const serieChapters = library
+              .fetchChapters(series.id!)
+              .filter((x) => !x.read)
+              .filter((x) => chapterLanguages.includes(x.languageKey))
+              .sort((a, b) => parseFloat(a.chapterNumber) - parseFloat(b.chapterNumber))
+              .slice(0, count);
 
-      const nonDownloadedChapters = await Promise.all(
-        serieChapters.map(async (x) => {
-          const result = await getChapterDownloaded(series, x, downloadsDir);
-          return result !== true ? x : null;
+            const nonDownloadedChapters = await Promise.all(
+              serieChapters.map(async (x) => {
+                const r = await getChapterDownloaded(series, x, downloadsDir);
+                return r !== true ? x : null;
+              })
+            );
+
+            const filteredNonDownloadedChapters = nonDownloadedChapters.filter(Boolean);
+
+            downloaderClient.add(
+              filteredNonDownloadedChapters.map(
+                (chapter) =>
+                  ({
+                    chapter,
+                    series,
+                    downloadsDir,
+                  } as DownloadTask)
+              )
+            );
+            downloaderClient.start(notification);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
         })
-      );
-
-      const filteredNonDownloadedChapters = nonDownloadedChapters.filter(Boolean);
-
-      downloaderClient.add(
-        filteredNonDownloadedChapters.map(
-          (chapter) =>
-            ({
-              chapter,
-              series,
-              downloadsDir,
-            } as DownloadTask)
-        )
-      );
-      downloaderClient.start(notification);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+        .catch((e: Error) => console.error(e));
     });
 }
 

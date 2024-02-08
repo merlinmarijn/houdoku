@@ -1,5 +1,6 @@
 import { Chapter, Series } from '@tiyo/common';
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
 import persistantStore from '../util/persistantStore';
 import storeKeys from '../constants/storeKeys.json';
 import { Category } from '../models/types';
@@ -118,6 +119,18 @@ const validURL = (str: string): boolean => {
   return !!pattern.test(str);
 };
 
+const validFilePath = async (str: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    fs.access(str, fs.constants.F_OK, (err) => {
+      if (err) {
+        resolve(false);
+      } else {
+        resolve(true);
+      }
+    });
+  });
+};
+
 export default {
   fetchSeriesList,
   fetchSeries,
@@ -131,4 +144,5 @@ export default {
   upsertCategory,
   removeCategory,
   validURL,
+  validFilePath,
 };

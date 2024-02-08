@@ -105,7 +105,8 @@ const DashboardPage: React.FC<Props> = () => {
             DownloadUnreadChapters(
               library.fetchSeriesList(),
               customDownloadsDir || String(getDefaultDownloadDir()),
-              OnStartUpDownloadUnreadCount
+              OnStartUpDownloadUnreadCount,
+              chapterLanguages
             );
           }
           const updatedSeriesData = await fetchSeriesData(library.fetchSeriesList());
